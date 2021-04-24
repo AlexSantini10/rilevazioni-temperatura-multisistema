@@ -7,6 +7,8 @@ int outputpin= A0;
 #define ssid  "labinformatica"
 #define password  "78945612311"
 
+#define stanza 1
+
 const uint16_t port = 8080;
 const char *host = "192.168.0.111";
 WiFiClient client;
@@ -41,7 +43,7 @@ void loop()
 
     String data = String(celsius);
     
-    client.println(celsius);     // Send data
+    client.println(stanza + " " + celsius);     // Send data
     delay(250);
     while (client.available() > 0)
     {
