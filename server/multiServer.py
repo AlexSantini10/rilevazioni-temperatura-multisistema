@@ -58,7 +58,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         self.request.sendall(b'OK')
 
 if __name__ == "__main__":
-    HOST, PORT = "localhost", 8080
+    HOST, PORT = "0.0.0.0", 8080
 
     with socketserver.TCPServer((HOST, PORT), MyTCPHandler) as server:
         print("Ctrl-C per interrompere")
