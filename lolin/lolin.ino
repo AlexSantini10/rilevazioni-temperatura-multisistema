@@ -43,7 +43,7 @@ void loop()
 
     String data = String(celsius);
     
-    client.println(stanza + " " + celsius);     // Send data
+    client.println(String(stanza) + " " + String(celsius));     // Send data
     delay(250);
     while (client.available() > 0)
     {
