@@ -1,69 +1,86 @@
-from os import times
-import socketserver
-import mysql.connector
 from datetime import datetime
+import socketserver
 
-debugMode = False
+import mysql.connector
 
-mydb = mysql.connector.connect(
-  	host="localhost",
-  	user="root",
-    passwd="",
-    database="temperaturalolin"
-)
+DEBUG_MODE = False
+HOST = "0.0.0.0"
+PORT = 8080
 
-mycursor = mydb.cursor()
+DATABASE_CONFIG = {
+    "host": "localhost",
+    "user": "root",
+    "passwd": "",
+    "database": "temperaturalolin",
+}
+
+
+def get_database_connection():
+    return mysql.connector.connect(**DATABASE_CONFIG)
+
+
+def parse_payload(raw_payload):
+    payload = raw_payload.decode("utf-8").strip()
+    stanza, temperatura = payload.split(" ", 1)
+    return stanza, temperatura
+
+
+def reading_exists(cursor, stanza):
+    cursor.execute("SELECT 1 FROM rilevazioni WHERE stanza = %s", (stanza,))
+    return cursor.fetchone() is not None
+
+
+def update_reading(cursor, stanza, temperatura):
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cursor.execute(
+        "UPDATE rilevazioni SET temp = %s, time = %s WHERE stanza = %s",
+        (temperatura, timestamp, stanza),
+    )
+
+
+def insert_reading(cursor, stanza, temperatura):
+    cursor.execute(
+        "INSERT INTO rilevazioni (temp, stanza) VALUES (%s, %s)",
+        (temperatura, stanza),
+    )
+
 
 class MyTCPHandler(socketserver.BaseRequestHandler):
-
     def handle(self):
-        self.data = self.request.recv(1024).strip()
+        raw_payload = self.request.recv(1024).strip()
         print(f"{self.client_address[0]} wrote:")
-        
-        data = self.data.decode('utf-8')
-        data = data.split(' ')
 
-        stanza = data[0]
-        temp = data[1]
+        try:
+            stanza, temperatura = parse_payload(raw_payload)
+        except ValueError:
+            print("Payload non valido:", raw_payload)
+            self.request.sendall(b"ERROR")
+            return
 
-        if debugMode:
-            print(stanza, temp)
-        
+        if DEBUG_MODE:
+            print(stanza, temperatura)
 
-        mycursor.execute(f"SELECT * FROM rilevazioni WHERE stanza='{stanza}'")
-        res = mycursor.fetchall()
+        connection = get_database_connection()
+        cursor = connection.cursor()
 
-        if len(res)>=1:
+        try:
+            if reading_exists(cursor, stanza):
+                update_reading(cursor, stanza, temperatura)
+            else:
+                insert_reading(cursor, stanza, temperatura)
 
-            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            connection.commit()
+        finally:
+            cursor.close()
+            connection.close()
 
-            if debugMode:
-                print(f"UPDATE rilevazioni SET temp='{temp}', time='{timestamp} WHERE stanza='{stanza}'")
+        self.request.sendall(b"OK")
 
-            mycursor.execute(f"UPDATE rilevazioni SET temp='{temp}', time='{timestamp}' WHERE stanza='{stanza}'")
-            mydb.commit()
-        else:
-
-            if debugMode:
-                print(f"INSERT INTO rilevazioni (temp, stanza) VALUES ('{temp}', '{stanza}')")
-
-            mycursor.execute(f"INSERT INTO rilevazioni (temp, stanza) VALUES ('{temp}', '{stanza}')")
-            mydb.commit()
-
-        print(res)
-        
-        #mycursor.execute(f"INSERT INTO rilevazioni (temp, stanza) VALUES ('{temp}', '{stanza}')")
-        #mydb.commit()
-
-        self.request.sendall(b'OK')
 
 if __name__ == "__main__":
-    HOST, PORT = "0.0.0.0", 8080
-
     with socketserver.TCPServer((HOST, PORT), MyTCPHandler) as server:
         print("Ctrl-C per interrompere")
         try:
             server.serve_forever()
         except KeyboardInterrupt:
             print("server shutdown")
-            exit()

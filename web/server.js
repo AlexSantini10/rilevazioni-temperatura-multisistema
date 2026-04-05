@@ -1,34 +1,30 @@
 const express = require('express');
 const path = require('path');
 
+const dataRouter = require('./routes/api/data');
+
 const app = express();
 const port = process.env.PORT || 5000;
+const allowedOrigin = process.env.CLIENT_ORIGIN || 'http://localhost:3000';
 
 app.use(express.json());
 
 app.use((req, res, next) => {
-
-    // Website you wish to allow to connect
-    res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3000');
-
-    // Request methods you wish to allow
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
-
-    // Request headers you wish to allow
-    res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,content-type');
-
-    // Set to true if you need the website to include cookies in the requests sent
-    // to the API (e.g. in case you use sessions)
-    res.setHeader('Access-Control-Allow-Credentials', true);
-
-    // Pass to next layer of middleware
-    next();
+  res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
+  res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,content-type');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  next();
 });
 
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/api/data', dataRouter);
 
-app.use('/api/data', require('./routes/api/data'));
+app.use((error, _req, res, _next) => {
+  console.error(error);
+  res.status(500).json({ message: 'Errore interno del server' });
+});
 
-var server = app.listen(port, () => {
-    console.log('Server started on port: ' + port);
-})
+app.listen(port, () => {
+  console.log(`Server started on port: ${port}`);
+});
